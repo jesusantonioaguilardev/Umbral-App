@@ -110,8 +110,8 @@ fun GuardiaScreen(repo: Repository, perfil: Perfil, salir: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(if (ok) "✓ Acceso válido" else "✕ Acceso denegado", color = if (ok) Verde else Rojo, fontWeight = FontWeight.Bold)
-                    Text(r.visitante ?: "—", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = androidx.compose.ui.graphics.Color(0xFF111827))
-                    Text(listOfNotNull(r.tipo?.etiqueta, r.unidad, r.autorizo?.let { "Autorizó: $it" }).joinToString(" · "), color = androidx.compose.ui.graphics.Color(0xFF4B5563))
+                    Text(r.visitante ?: "—", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(listOfNotNull(r.tipo?.etiqueta, r.unidad, r.autorizo?.let { "Autorizó: $it" }).joinToString(" · "), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
                     r.motivo?.let { Text(it, color = Rojo, fontWeight = FontWeight.Bold) }
                 }
             }
