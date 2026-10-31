@@ -8,6 +8,10 @@ local.properties
 iosApp/build/
 xcuserdata/
 
+# Firebase (cada quien baja los suyos de la consola)
+google-services.json
+GoogleService-Info.plist
+
 # Herramientas locales
 .claude/
 .vscode/

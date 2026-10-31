@@ -16,7 +16,7 @@ y la referencia de funciones SQL están en Umbral-Web:
 - [Referencia de funciones RPC, triggers y RLS](https://github.com/jesusantonioaguilardev/Umbral-Web#referencia-de-la-base-de-datos)
 
 Contenido: [Requisitos](#requisitos) · [1. Configurar](#1-configurar-configkt) · [2. Compilar y correr](#2-compilar-y-correr) ·
-[Qué hace la app](#qué-hace-la-app) · [Estructura](#estructura) · [Pendientes](#pendientes-para-producción)
+[3. Notificaciones push](#3-notificaciones-push-android) · [Qué hace la app](#qué-hace-la-app) · [Estructura](#estructura) · [Pendientes](#pendientes-para-producción)
 
 ---
 
@@ -110,6 +110,42 @@ El framework se llama `ComposeApp` (estático) y se genera para `iosArm64`, `ios
 ./gradlew :composeApp:assembleDebug
 ```
 
+## 3. Notificaciones push (Android)
+
+El residente recibe un push cuando entra su visita (o un proveedor, paquetería o Airbnb de su unidad), cuando caseta recibe un
+paquete para su unidad y cuando administración publica un aviso. La app solo registra el teléfono; quien arma y envía cada
+notificación es la base de datos (triggers) y la Edge Function `notificar` de Umbral-Web.
+
+Para activarlo en Android:
+
+1. En la [consola de Firebase](https://console.firebase.google.com) crea un proyecto para Umbral (o usa uno que ya tengas).
+2. En ese proyecto, **Agregar app → Android**, con el nombre de paquete `mx.umbral.app` (el `applicationId` de
+   `composeApp/build.gradle.kts`). Si el paquete no coincide, Firebase no entrega los mensajes.
+3. Descarga `google-services.json` y cópialo a `composeApp/google-services.json`.
+   - Está en `.gitignore`: no lo subas al repositorio; cada quien descarga el suyo.
+   - Sin ese archivo la app **compila y funciona igual**, pero sin push: `composeApp/build.gradle.kts` solo aplica el plugin
+     `com.google.gms.google-services` si el archivo existe, y la app escribe en logcat (etiqueta `UmbralPush`)
+     *"Firebase no está configurado (falta google-services.json)"*.
+4. Recompila e instala:
+   ```bash
+   ./gradlew :composeApp:installDebug
+   ```
+5. Configura la parte del servidor (tablas, Edge Function `notificar`, secretos y Database Webhook) siguiendo
+   [Umbral-Web/supabase/functions/notificar/README.md](https://github.com/jesusantonioaguilardev/Umbral-Web/blob/main/supabase/functions/notificar/README.md).
+   Necesita el `supabase/schema.sql` actualizado de Umbral-Web.
+
+Cómo se comporta:
+
+- Al iniciar sesión, la app registra el token del teléfono con la RPC `registrar_dispositivo`. Al cerrar sesión lo quita con
+  `quitar_dispositivo` **antes** de cerrar la sesión, porque la RPC solo deja quitar tokens propios y necesita al usuario
+  autenticado; así el siguiente usuario del mismo teléfono no recibe avisos ajenos.
+- En Android 13 o más reciente, la app pide el permiso de notificaciones (`POST_NOTIFICATIONS`) al entrar como **residente**,
+  que es el único rol al que la base de datos le manda push. Si lo niega, la app sigue funcionando sin avisos.
+- Las notificaciones usan el canal **Umbral** (`umbral`), que se crea al abrir la app para que exista aunque el push llegue con
+  la app cerrada.
+- iOS todavía no recibe push: el código Kotlin está listo, pero falta la parte nativa en Xcode
+  (ver [iosApp/PUSH_IOS.md](iosApp/PUSH_IOS.md)). Escritorio no recibe push.
+
 ## Qué hace la app
 
 Al iniciar sesión, la pantalla depende del rol (`App.kt`):
@@ -148,10 +184,13 @@ composeApp/src/
     util/Fechas.kt        ← fechas en la zona del condominio
     util/Url.kt           ← codificación de URL para wa.me
     platform/Compartir.kt ← expect de la hoja de compartir
-  androidMain/            ← MainActivity y "compartir" de Android
-  iosMain/                ← MainViewController y "compartir" de iOS
-  desktopMain/            ← main.kt y "compartir" de escritorio
+    platform/Push.kt      ← expect del token y el permiso de push
+  androidMain/            ← MainActivity, "compartir" y push de Android (push/: servicio FCM y canal)
+  iosMain/                ← MainViewController, "compartir" y puente de push de iOS
+  desktopMain/            ← main.kt, "compartir" y push vacío de escritorio
+composeApp/google-services.json ← lo pones tú (Firebase); no se versiona
 iosApp/iosApp/            ← código Swift de arranque para iOS
+iosApp/PUSH_IOS.md        ← pasos pendientes para push en iOS
 gradle/libs.versions.toml ← versiones (Kotlin, Compose, Supabase, Ktor…)
 ```
 
@@ -160,7 +199,8 @@ gradle/libs.versions.toml ← versiones (Kotlin, Compose, Supabase, Ktor…)
 - **Pago con tarjeta:** el botón *Pagar con tarjeta* hoy solo llama a `reportarPago(cargo, "tarjeta", …)`, que queda por confirmar.
   Falta integrar una pasarela (Stripe, Conekta, Openpay…) antes de esa llamada.
 - **Conciliación SPEI automática** (ver Umbral-Web).
-- **Notificaciones push** (paquete recibido, alerta de emergencia).
+- **Push en iOS:** falta la parte nativa en Xcode (Firebase, llave APNs y puente Swift); pasos en [iosApp/PUSH_IOS.md](iosApp/PUSH_IOS.md).
+- **Push de alerta de emergencia:** hoy solo hay push de visita, paquete y aviso; las `alertas` no generan notificación.
 - **Escaneo con cámara en la app:** hoy el guardia teclea el código.
 - **Proyecto de Xcode** versionado en `iosApp/`.
 

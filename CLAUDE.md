@@ -23,7 +23,9 @@ Guía para personas: [README.md](README.md). Cambios: [CHANGELOG.md](CHANGELOG.m
 | `Config.kt` | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `URL_PASE_WEB`, `ZONA_HORARIA`, `MODULO_COMUNIDAD`, `MODULO_FINANZAS` |
 | `data/Models.kt` | Modelos `@Serializable` con `@SerialName` en snake_case = columnas de Supabase |
 | `data/Repository.kt` | Contrato de operaciones (sesión, pases, cuotas, comunidad, caseta) |
-| `data/SupabaseRepository.kt` | Consultas a tablas y RPC `generar_codigo_personal`, `validar_pase` |
+| `data/SupabaseRepository.kt` | Consultas a tablas y RPC `generar_codigo_personal`, `validar_pase`, `registrar_dispositivo`, `quitar_dispositivo` |
+| `platform/Push.kt` (+ `.android/.ios/.desktop`) | `plataformaPush`, `tokenPush()`, `PedirPermisoNotificaciones()`, `TokensPush` |
+| `androidMain/.../push/` | `UmbralMessagingService` (FCM) y `Notificaciones` (canal `umbral`) |
 | `ui/Theme.kt` | `UmbralTheme`, esquemas claro/oscuro y `LocalColoresEstado` (`Verde`, `Rojo`, `Ambar` y sus `*Suave`) |
 | `ui/Components.kt` | Componentes compartidos (`Tarjeta`, `Etiqueta*`, `Contenido`, `Vacio`, `cargar`…) |
 | `ui/residente/*Tab.kt`, `ui/caseta/GuardiaScreen.kt` | Pantallas |
@@ -50,6 +52,11 @@ Guía para personas: [README.md](README.md). Cambios: [CHANGELOG.md](CHANGELOG.m
 - **Pagos:** el residente inserta en `pagos`; el trigger fuerza `confirmado = false`. `cargos()` marca `enRevision` los cargos
   con un pago sin confirmar, que no se pueden volver a pagar.
 - **Encuestas:** `cerrada` si `cierra < hoy`; la política `vt_ins` rechaza votos en encuestas cerradas.
+- **RPC usadas:** App → `validar_pase`, `generar_codigo_personal`, `registrar_dispositivo`, `quitar_dispositivo`.
+  Cambiar firma o forma del JSON exige revisar ambos repos.
+- **Push:** `App.kt` registra el token con sesión abierta y lo quita *antes* de `logout()` (la RPC necesita sesión).
+  `plataformaPush` debe ser `android|ios|web|desktop` (check de `dispositivos`). El canal `umbral` de `Notificaciones.kt` es el
+  default de FCM en el manifest. `google-services.json` está en `.gitignore`: nunca lo agregues; sin él el plugin no se aplica.
 - El esquema no se edita aquí. Si la app necesita una columna o RPC nueva, el cambio va en `Umbral-Web/supabase/schema.sql`
   (agente `umbral-supabase`) y se menciona en ambos CHANGELOG.
 
