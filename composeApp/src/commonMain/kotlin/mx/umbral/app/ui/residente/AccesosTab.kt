@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
@@ -53,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -62,7 +64,9 @@ import androidx.compose.ui.unit.sp
 import io.github.alexzhirkevich.qrose.rememberQrCodePainter
 import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.minus
 import kotlinx.datetime.plus
+import kotlinx.datetime.toLocalDateTime
 import mx.umbral.app.Config
 import mx.umbral.app.data.Pase
 import mx.umbral.app.data.Perfil
@@ -79,6 +83,7 @@ import mx.umbral.app.ui.Titulo
 import mx.umbral.app.ui.Vacio
 import mx.umbral.app.ui.cargar
 import mx.umbral.app.util.Fechas
+import mx.umbral.app.util.codificarUrl
 import kotlin.time.Duration.Companion.hours
 
 fun Pase.vigente(): Boolean = activo && (Fechas.parse(validoHasta)?.let { it > Fechas.ahora() } ?: false) &&
@@ -88,6 +93,33 @@ fun Pase.descripcionHorario(): String = if (modalidad == "recurrente") {
     val d = dias?.joinToString(", ") { Fechas.DIAS[it - 1] } ?: "Todos los días"
     d + (horaInicio?.let { " · ${it.take(5)} a ${horaFin?.take(5)}" } ?: "") + " · hasta ${Fechas.fecha(validoHasta)}"
 } else "Una vez · ${Fechas.fechaHora(validoDesde)}"
+
+/** Vigencia en palabras para el mensaje a la visita. */
+fun Pase.vigenciaLegible(): String = if (modalidad == "recurrente") {
+    val d = dias?.sorted()?.map { Fechas.DIAS[it - 1] }?.let { l ->
+        if (l.size == 1) l[0] else l.dropLast(1).joinToString(", ") + " y " + l.last()
+    } ?: "Todos los días"
+    val horario = horaInicio?.let { ", de ${it.take(5)} a ${horaFin?.take(5) ?: "23:59"}" } ?: ""
+    // valido_hasta es el inicio del día siguiente al último día válido
+    val ultimo = Fechas.parse(validoHasta)?.toLocalDateTime(Fechas.zona)?.let {
+        if (it.hour == 0 && it.minute == 0) it.date.minus(1, DateTimeUnit.DAY) else it.date
+    }
+    "$d$horario, hasta el ${ultimo?.let { Fechas.fecha(it.toString()) } ?: Fechas.fecha(validoHasta)}"
+} else {
+    val dia = Fechas.parse(validoDesde)?.toLocalDateTime(Fechas.zona)?.date
+    val nombre = dia?.let { "${Fechas.DIAS[it.dayOfWeek.ordinal]} ${Fechas.fecha(it.toString())}" } ?: Fechas.fecha(validoDesde)
+    "$nombre, desde las ${Fechas.hora(validoDesde)}"
+}
+
+/** Texto que se envía a la visita por WhatsApp o la hoja de compartir. */
+fun Pase.mensajeParaVisita(condo: String, unidad: String?): String = buildString {
+    append("Hola, $visitante. Te comparto tu pase de acceso a $condo")
+    unidad?.let { append(" ($it)") }
+    append(".\n\nVigencia: ${vigenciaLegible()}\n")
+    append("Código: $codigo\n\n")
+    append("Abre tu pase: ${Config.URL_PASE_WEB}$codigo\n")
+    append("Al llegar, muestra el QR en caseta.")
+}
 
 @Composable
 fun AccesosTab(repo: Repository, perfil: Perfil, abrirNuevo: Boolean, onNuevoCerrado: () -> Unit) {
@@ -236,13 +268,13 @@ private fun NuevoPaseSheet(repo: Repository, onCerrar: (Pase?) -> Unit) {
 @Composable
 private fun PaseDialog(p: Pase, perfil: Perfil, repo: Repository, onCerrar: () -> Unit, onCancelar: (() -> Unit)?, onCambio: () -> Unit) {
     val compartir = rememberCompartir()
+    val uri = LocalUriHandler.current
     val scope = rememberCoroutineScope()
-    val condo = perfil.condominio?.nombre ?: "el condominio"
-    val mensaje = buildString {
-        append("Hola ${p.visitante}, te comparto tu pase de acceso a $condo")
-        perfil.unidad?.let { append(" (${it.nombre})") }
-        append(".\n\n${p.descripcionHorario()}\nCódigo: ${p.codigo}\n")
-        append("Muestra tu QR en caseta: ${Config.URL_PASE_WEB}${p.codigo}")
+    var error by remember { mutableStateOf<String?>(null) }
+    val mensaje = p.mensajeParaVisita(perfil.condominio?.nombre ?: "el condominio", perfil.unidad?.nombre)
+    // wa.me abre WhatsApp (app o web); si no se puede, cae a la hoja nativa
+    fun enviarWhatsApp() {
+        runCatching { uri.openUri("https://wa.me/?text=${codificarUrl(mensaje)}") }.onFailure { compartir(mensaje) }
     }
     AlertDialog(
         onDismissRequest = onCerrar,
@@ -255,16 +287,27 @@ private fun PaseDialog(p: Pase, perfil: Perfil, repo: Repository, onCerrar: () -
                 Text(p.codigo, fontFamily = FontFamily.Monospace, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                 Text("${p.tipo.etiqueta} · ${p.descripcionHorario()}", textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall)
                 if (!p.vigente()) Text("Este pase ya no es válido", color = MaterialTheme.colorScheme.error)
+                if (p.vigente()) {
+                    Button(onClick = ::enviarWhatsApp, Modifier.fillMaxWidth().height(52.dp)) {
+                        Icon(Icons.AutoMirrored.Filled.Send, null, Modifier.size(18.dp))
+                        Text("  Enviar por WhatsApp", fontWeight = FontWeight.SemiBold)
+                    }
+                    OutlinedButton(onClick = { compartir(mensaje) }, Modifier.fillMaxWidth().height(48.dp)) {
+                        Icon(Icons.Filled.Share, null, Modifier.size(18.dp)); Text("  Compartir por otra app")
+                    }
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
-        confirmButton = {
-            if (p.vigente()) Button(onClick = { compartir(mensaje) }) { Icon(Icons.Filled.Share, null, Modifier.size(18.dp)); Text("  Compartir") }
-            else TextButton(onClick = onCerrar) { Text("Cerrar") }
-        },
+        confirmButton = { TextButton(onClick = onCerrar) { Text("Cerrar") } },
         dismissButton = {
-            if (onCancelar != null) OutlinedButton(onClick = {
-                scope.launch { runCatching { repo.cancelarPase(p.id) }; onCambio(); onCancelar() }
-            }) { Text("Cancelar pase") }
+            if (onCancelar != null) TextButton(onClick = {
+                scope.launch {
+                    runCatching { repo.cancelarPase(p.id) }
+                        .onSuccess { onCambio(); onCancelar() }
+                        .onFailure { error = it.message ?: "No se pudo cancelar el pase" }
+                }
+            }) { Text("Cancelar pase", color = MaterialTheme.colorScheme.error) }
         },
     )
 }
