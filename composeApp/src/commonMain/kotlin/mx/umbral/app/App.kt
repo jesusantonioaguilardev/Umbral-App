@@ -93,7 +93,11 @@ fun App() {
             when {
                 iniciando -> Cargando()
                 p == null -> LoginScreen(repo) { perfil = it }
-                p.rol == Rol.guardia -> GuardiaScreen(repo, p, salir)
+                p.rol == Rol.guardia -> {
+                    // El guardia también recibe las alertas de emergencia por push
+                    PedirPermisoNotificaciones()
+                    GuardiaScreen(repo, p, salir)
+                }
                 p.rol == Rol.residente -> {
                     PedirPermisoNotificaciones()
                     ResidenteHome(repo, p, salir)
