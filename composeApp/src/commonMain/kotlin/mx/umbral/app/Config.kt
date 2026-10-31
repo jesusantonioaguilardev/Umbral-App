@@ -11,6 +11,9 @@ object Config {
     /** Página web pública que muestra el QR al visitante (web/pase.html del dashboard). */
     const val URL_PASE_WEB = "https://tu-dominio.mx/pase.html?c="
 
+    /** Zona horaria del condominio. Debe coincidir con ZONA_HORARIA de web/js/config.js. */
+    const val ZONA_HORARIA = "America/Hermosillo"
+
     /** Módulos activos. Deben coincidir con MODULOS de web/js/config.js. Accesos siempre está activo. */
     const val MODULO_COMUNIDAD = true   // avisos, paquetes, tickets, reservaciones y encuestas
     const val MODULO_FINANZAS = false   // estado de cuenta y pagos

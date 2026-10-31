@@ -1,5 +1,6 @@
 package mx.umbral.app.util
 
+import mx.umbral.app.Config
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.Instant
@@ -15,7 +16,10 @@ import kotlinx.datetime.toLocalDateTime
 object Fechas {
     private val MESES = listOf("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
     val DIAS = listOf("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
-    val zona: TimeZone get() = TimeZone.currentSystemDefault()
+    // Zona del condominio; si la plataforma no la conoce, se usa la del sistema
+    val zona: TimeZone by lazy {
+        runCatching { TimeZone.of(Config.ZONA_HORARIA) }.getOrElse { TimeZone.currentSystemDefault() }
+    }
 
     fun ahora(): Instant = Clock.System.now()
     fun hoy(): LocalDate = ahora().toLocalDateTime(zona).date
