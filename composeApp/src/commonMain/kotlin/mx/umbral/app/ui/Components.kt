@@ -1,5 +1,7 @@
 package mx.umbral.app.ui
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -350,11 +352,12 @@ fun Campo(
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(etiqueta, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
+            // La etiqueta visible no se lee aparte: el campo ya la anuncia como su nombre
+            Text(etiqueta, Modifier.weight(1f).clearAndSetSemantics {}, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
             accionEtiqueta?.invoke()
         }
         OutlinedTextField(
-            valor, onValor, Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            valor, onValor, Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = etiqueta },
             singleLine = singleLine, minLines = minLines,
             textStyle = estilo,
             placeholder = placeholder?.let { { Text(it, style = estilo, color = Terciario) } },
