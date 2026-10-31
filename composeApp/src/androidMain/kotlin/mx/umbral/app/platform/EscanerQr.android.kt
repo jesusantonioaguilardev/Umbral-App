@@ -175,7 +175,11 @@ private fun VistaCamara(onLeido: (String) -> Unit, onError: (String) -> Unit) {
         val lector = BarcodeScanning.getClient(BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build())
         val futuro = ProcessCameraProvider.getInstance(context)
         var proveedor: ProcessCameraProvider? = null
+        var analisis: ImageAnalysis? = null
+        // Si el escáner se cierra antes de que CameraX termine de arrancar, no hay que ligar la cámara
+        var cerrado = false
         futuro.addListener({
+            if (cerrado) return@addListener
             runCatching {
                 val p = futuro.get().also { proveedor = it }
                 // Las tabletas de caseta a veces solo tienen cámara frontal
@@ -185,15 +189,17 @@ private fun VistaCamara(onLeido: (String) -> Unit, onError: (String) -> Unit) {
                     else -> error("Este dispositivo no tiene cámara disponible.")
                 }
                 val preview = Preview.Builder().build().also { it.setSurfaceProvider(vista.surfaceProvider) }
-                val analisis = ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-                analisis.setAnalyzer(ejecutor) { imagen ->
+                val a = ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build().also { analisis = it }
+                a.setAnalyzer(ejecutor) { imagen ->
                     analizar(imagen, lector, leido) { texto -> vibrar(context); alLeer(texto) }
                 }
                 p.unbindAll()
-                p.bindToLifecycle(lifecycleOwner, camara, preview, analisis)
+                p.bindToLifecycle(lifecycleOwner, camara, preview, a)
             }.onFailure { alFallar(it.message ?: "Error de cámara") }
         }, ContextCompat.getMainExecutor(context))
         onDispose {
+            cerrado = true
+            analisis?.clearAnalyzer()
             proveedor?.unbindAll()
             lector.close()
             ejecutor.shutdown()

@@ -193,7 +193,7 @@ y sesión abierta (residentes, caseta y administración), menos a quien la envi�
 
 **Por qué hay que mantenerlo presionado y por qué hay límite:** una alerta le llega a todo el condominio, así que un toque
 accidental en el bolsillo molestaría a todos. Por eso se mantiene 2 segundos y, además, la base de datos (`limitar_alertas`) deja
-a cada residente enviar como máximo 2 alertas cada 10 minutos (*"Ya enviaste una alerta hace poco; caseta ya fue avisada"*).
+a cada residente enviar como máximo 2 alertas cada 10 minutos (*"Ya enviaste una alerta hace poco; tu alerta ya llegó a caseta y al condominio"*).
 La política `al_ins` rechaza la alerta si `creado_por` no es quien tiene la sesión.
 
 Necesita el `supabase/schema.sql` actualizado de Umbral-Web y, para el canal *Emergencias* en segundo plano, la Edge Function

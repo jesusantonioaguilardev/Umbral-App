@@ -109,7 +109,7 @@ fun BotonEmergencia(onActivar: () -> Unit, onAviso: (String?) -> Unit, modifier:
             .border(1.dp, rojo, forma)
             .clearAndSetSemantics {
                 role = Role.Button
-                contentDescription = "Emergencia. Mantén presionado 2 segundos para avisar a caseta"
+                contentDescription = "Emergencia. Mantén presionado 2 segundos para enviar una alerta a todo el condominio"
                 onClick(label = "Enviar alerta de emergencia") { activar(); true }
             }
             .pointerInput(Unit) {
