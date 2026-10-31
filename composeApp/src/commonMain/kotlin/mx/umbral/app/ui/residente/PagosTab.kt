@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
 import mx.umbral.app.data.Cargo
 import mx.umbral.app.data.Repository
 import mx.umbral.app.ui.Contenido
@@ -57,6 +58,10 @@ import mx.umbral.app.util.mxn
 
 private fun String.clabeLegible() = chunked(3).joinToString(" ")
 
+/** Pendiente con fecha de vencimiento ya pasada (o marcado vencido por administración). */
+fun Cargo.estaVencido(hoy: LocalDate = Fechas.hoy()): Boolean = estado == "vencido" ||
+    (estado == "pendiente" && runCatching { LocalDate.parse(vence.take(10)) < hoy }.getOrDefault(false))
+
 @Composable
 fun PagosTab(repo: Repository) {
     var refresco by remember { mutableIntStateOf(0) }
@@ -69,11 +74,17 @@ fun PagosTab(repo: Repository) {
         item { Text("Cuotas y pagos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
         item {
             Contenido(cargos, onReintentar = { refresco++ }) { lista ->
-                val pendiente = lista.filter { it.estado != "pagado" }.sumOf { it.monto }
+                val hoy = Fechas.hoy()
+                val porPagar = lista.filter { it.estado != "pagado" }
+                val pendiente = porPagar.sumOf { it.monto }
+                val vencidos = porPagar.filter { !it.enRevision && it.estaVencido(hoy) }
                 Tarjeta(fondo = MaterialTheme.colorScheme.primaryContainer) {
                     Secundario("Saldo pendiente")
                     Text(pendiente.mxn(), fontSize = 34.sp, fontWeight = FontWeight.Bold)
-                    Secundario(if (pendiente == 0.0) "Estás al corriente. ¡Gracias!" else "${lista.count { it.estado != "pagado" }} cargo(s) por pagar")
+                    Secundario(if (pendiente == 0.0) "Estás al corriente. ¡Gracias!" else "${porPagar.size} cargo(s) por pagar")
+                    if (vencidos.isNotEmpty()) EtiquetaMal(
+                        "${vencidos.size} ${if (vencidos.size == 1) "cargo vencido" else "cargos vencidos"} · ${vencidos.sumOf { it.monto }.mxn()}"
+                    )
                 }
             }
         }
@@ -103,7 +114,7 @@ fun PagosTab(repo: Repository) {
                             when {
                                 c.estado == "pagado" -> EtiquetaOk("Pagado")
                                 c.enRevision -> Etiqueta("En revisión")
-                                c.estado == "vencido" -> EtiquetaMal("Vencido")
+                                c.estaVencido() -> EtiquetaMal("Vencido")
                                 else -> EtiquetaAviso("Pagar")
                             }
                         }
