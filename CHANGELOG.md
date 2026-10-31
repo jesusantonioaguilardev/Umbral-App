@@ -25,6 +25,10 @@ Cambios importantes de este proyecto. Formato basado en [Keep a Changelog](https
 - `CLAUDE.md` con el contexto del repositorio para los agentes.
 
 ### Cambiado
+- **Rediseño minimalista** de todas las pantallas: paleta sobria con un solo acento, sin sombras, listas agrupadas en una tarjeta y
+  estados siempre con texto además de color. El inicio del residente ahora es Accesos (código personal, "Crear pase para visita",
+  pases activos y pendientes); el pase creado se abre a pantalla completa; la caseta muestra un resultado grande con
+  "Levanta la pluma" o "No levantes la pluma". Barra inferior de 4 secciones: Accesos, Comunidad, Pagos y Perfil. Ver también Umbral-Web.
 - Un cargo con un pago reportado que administración aún no confirma se muestra **En revisión** y no se puede volver a pagar,
   para evitar pagos duplicados mientras se verifica la transferencia. Necesita el cambio de esquema de Umbral-Web
   (`pagos.confirmado`). **(requiere ejecutar `supabase/schema.sql` en Umbral-Web)**
