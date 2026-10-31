@@ -102,7 +102,11 @@ data class Cargo(
     val monto: Double,
     val vence: String,
     val estado: String, // pendiente | pagado | vencido
+    val enRevision: Boolean = false, // el residente ya reportó el pago y administración no lo confirma
 )
+
+@Serializable
+data class PagoReportado(@SerialName("cargo_id") val cargoId: String? = null)
 
 @Serializable
 data class NuevoPago(
@@ -209,6 +213,7 @@ data class EncuestaConResultados(
     val encuesta: Encuesta,
     val votos: List<Int>,
     val miVoto: Int?,
+    val cerrada: Boolean = false,
 ) {
     val total get() = votos.sum()
 }

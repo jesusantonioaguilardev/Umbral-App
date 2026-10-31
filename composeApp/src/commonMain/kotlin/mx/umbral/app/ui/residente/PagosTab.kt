@@ -92,7 +92,7 @@ fun PagosTab(repo: Repository) {
         item { Titulo("Estado de cuenta") }
         cargos.datos?.let { lista ->
             items(lista, key = { it.id }) { c ->
-                Tarjeta(Modifier.clickable(enabled = c.estado != "pagado") { pagar = c }) {
+                Tarjeta(Modifier.clickable(enabled = c.estado != "pagado" && !c.enRevision) { pagar = c }) {
                     Fila {
                         Column(Modifier.weight(1f)) {
                             Text(c.concepto, fontWeight = FontWeight.SemiBold)
@@ -100,9 +100,10 @@ fun PagosTab(repo: Repository) {
                         }
                         Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
                             Text(c.monto.mxn(), fontWeight = FontWeight.Bold)
-                            when (c.estado) {
-                                "pagado" -> EtiquetaOk("Pagado")
-                                "vencido" -> EtiquetaMal("Vencido")
+                            when {
+                                c.estado == "pagado" -> EtiquetaOk("Pagado")
+                                c.enRevision -> Etiqueta("En revisión")
+                                c.estado == "vencido" -> EtiquetaMal("Vencido")
                                 else -> EtiquetaAviso("Pagar")
                             }
                         }

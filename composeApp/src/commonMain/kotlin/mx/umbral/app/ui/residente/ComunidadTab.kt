@@ -256,21 +256,30 @@ private fun Encuestas(repo: Repository) {
     var refresco by remember { mutableIntStateOf(0) }
     val encuestas by cargar(refresco) { repo.encuestas() }
     val scope = rememberCoroutineScope()
+    var error by remember { mutableStateOf<String?>(null) }
     Lista {
         item { Contenido(encuestas) { if (it.isEmpty()) Vacio("Sin encuestas activas") } }
+        error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
         items(encuestas.datos.orEmpty()) { e ->
             Tarjeta {
                 Text(e.encuesta.pregunta, fontWeight = FontWeight.SemiBold)
                 e.encuesta.opciones.forEachIndexed { i, op ->
                     val pct = if (e.total > 0) e.votos[i].toFloat() / e.total else 0f
-                    if (e.miVoto == null) {
-                        OutlinedButton(onClick = { scope.launch { runCatching { repo.votar(e.encuesta.id, i) }; refresco++ } }, Modifier.fillMaxWidth()) { Text(op) }
+                    if (e.miVoto == null && !e.cerrada) {
+                        OutlinedButton(onClick = {
+                            scope.launch {
+                                runCatching { repo.votar(e.encuesta.id, i) }
+                                    .onSuccess { error = null }
+                                    .onFailure { error = "No se pudo registrar tu voto: ${it.message}" }
+                                refresco++
+                            }
+                        }, Modifier.fillMaxWidth()) { Text(op) }
                     } else {
                         Fila { Text(op + if (e.miVoto == i) "  ✓" else "", Modifier.weight(1f)); Text("${(pct * 100).toInt()}%", fontWeight = FontWeight.Bold) }
                         LinearProgressIndicator(progress = { pct }, modifier = Modifier.fillMaxWidth())
                     }
                 }
-                Secundario("${e.total} votos" + (e.encuesta.cierra?.let { " · cierra ${Fechas.fecha(it)}" } ?: ""))
+                Secundario("${e.total} votos" + (e.encuesta.cierra?.let { (if (e.cerrada) " · cerró " else " · cierra ") + Fechas.fecha(it) } ?: ""))
             }
         }
     }

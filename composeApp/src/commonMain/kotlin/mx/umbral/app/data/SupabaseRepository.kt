@@ -84,10 +84,16 @@ class SupabaseRepository(url: String, anonKey: String) : Repository {
     // ---------------- Cuotas ----------------
     override suspend fun miUnidad(): Unidad? = yo.unidad
 
-    override suspend fun cargos(): List<Cargo> = client.from("cargos").select {
-        filter { eq("unidad_id", unidadId) }
-        order("vence", Order.DESCENDING); limit(48)
-    }.decodeList()
+    override suspend fun cargos(): List<Cargo> {
+        val cargos = client.from("cargos").select {
+            filter { eq("unidad_id", unidadId) }
+            order("vence", Order.DESCENDING); limit(48)
+        }.decodeList<Cargo>()
+        val enRevision = client.from("pagos").select {
+            filter { eq("unidad_id", unidadId); eq("confirmado", false) }
+        }.decodeList<PagoReportado>().mapNotNull { it.cargoId }.toSet()
+        return cargos.map { if (it.id in enRevision && it.estado != "pagado") it.copy(enRevision = true) else it }
+    }
 
     /** El residente reporta su transferencia con la clave de rastreo.
      *  En producción conviene confirmarla con un webhook del proveedor SPEI / CEP de Banxico. */
@@ -128,7 +134,8 @@ class SupabaseRepository(url: String, anonKey: String) : Repository {
         val vs = client.from("votos").select { filter { isIn("encuesta_id", es.map { it.id }) } }.decodeList<Voto>()
         return es.map { e ->
             val mios = vs.filter { it.encuestaId == e.id }
-            EncuestaConResultados(e, e.opciones.indices.map { i -> mios.count { it.opcion == i } }, mios.firstOrNull { it.unidadId == yo.unidadId }?.opcion)
+            EncuestaConResultados(e, e.opciones.indices.map { i -> mios.count { it.opcion == i } }, mios.firstOrNull { it.unidadId == yo.unidadId }?.opcion,
+                cerrada = e.cierra != null && e.cierra.take(10) < Fechas.hoy().toString())
         }
     }
 
