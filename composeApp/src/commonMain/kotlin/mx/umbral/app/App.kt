@@ -19,11 +19,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import mx.umbral.app.data.Perfil
 import mx.umbral.app.data.Repository
 import mx.umbral.app.data.Rol
 import mx.umbral.app.data.SupabaseRepository
+import mx.umbral.app.platform.PedirPermisoNotificaciones
+import mx.umbral.app.platform.TokensPush
+import mx.umbral.app.platform.logPush
+import mx.umbral.app.platform.plataformaPush
+import mx.umbral.app.platform.tokenPush
 import mx.umbral.app.ui.Cargando
 import mx.umbral.app.ui.UmbralTheme
 import mx.umbral.app.ui.caseta.GuardiaScreen
@@ -46,7 +52,40 @@ fun App() {
         perfil = runCatching { repo.restaurarSesion() }.getOrNull()
         iniciando = false
     }
-    val salir: () -> Unit = { scope.launch { runCatching { repo.logout() }; perfil = null } }
+    // Push: con sesión abierta registra el token (y los que lleguen nuevos) sin bloquear la UI.
+    var tokenRegistrado by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(perfil?.id) {
+        if (perfil == null) return@LaunchedEffect
+        suspend fun registrar(token: String) {
+            try {
+                repo.registrarDispositivo(token, plataformaPush)
+                tokenRegistrado = token
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logPush("No se pudo registrar el dispositivo", e)
+            }
+        }
+        try {
+            tokenPush()?.let { registrar(it) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logPush("No se obtuvo el token de push", e)
+        }
+        TokensPush.nuevos.collect { registrar(it) }
+    }
+    val salir: () -> Unit = {
+        scope.launch {
+            // Se quita antes de cerrar sesión: la RPC necesita al usuario autenticado.
+            tokenRegistrado?.let { t ->
+                runCatching { repo.quitarDispositivo(t) }.onFailure { logPush("No se pudo quitar el dispositivo", it) }
+            }
+            tokenRegistrado = null
+            runCatching { repo.logout() }
+            perfil = null
+        }
+    }
 
     UmbralTheme {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -55,7 +94,10 @@ fun App() {
                 iniciando -> Cargando()
                 p == null -> LoginScreen(repo) { perfil = it }
                 p.rol == Rol.guardia -> GuardiaScreen(repo, p, salir)
-                p.rol == Rol.residente -> ResidenteHome(repo, p, salir)
+                p.rol == Rol.residente -> {
+                    PedirPermisoNotificaciones()
+                    ResidenteHome(repo, p, salir)
+                }
                 else -> AdminEnMovil(p, salir)
             }
         }
