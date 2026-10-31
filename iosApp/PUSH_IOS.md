@@ -62,7 +62,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNUserNot
     // Token de FCM nuevo o renovado → Kotlin (lo registra App.kt si hay sesión).
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
         guard let token = fcmToken else { return }
-        PushIosKt.recibirTokenPush(token: token)
+        Push_iosKt.recibirTokenPush(token: token)
     }
 
     // Mostrar la notificación también con la app en primer plano.
@@ -85,8 +85,10 @@ struct iOSApp: App {
 ```
 
 Notas:
-- `PushIosKt` es el nombre que Kotlin/Native da a las funciones de `Push.ios.kt`. Si Xcode no lo
-  encuentra, revisa el header generado `ComposeApp.h` en el framework.
+- `Push_iosKt` es el nombre que Kotlin/Native da a las funciones de nivel superior de
+  `composeApp/src/iosMain/kotlin/mx/umbral/app/platform/Push.ios.kt`: toma el nombre del archivo, cambia el punto por `_` y
+  agrega `Kt` (por eso no es `PushIosKt`). Si renombras el archivo, cambia también esta llamada. Si Xcode no lo encuentra,
+  busca `recibirTokenPush` en el header generado `ComposeApp.h` del framework.
 - Si `Info.plist` tiene `FirebaseAppDelegateProxyEnabled = NO`, hay que pasar a mano el token de APNs
   (como arriba) y los mensajes a `Messaging.messaging().appDidReceiveMessage(_:)`. Con el valor por
   defecto (sí) no hace falta.

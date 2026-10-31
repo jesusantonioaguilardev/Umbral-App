@@ -8,7 +8,7 @@ actual val plataformaPush: String = "ios"
 // Swift Package Manager desde Xcode (requiere Mac). Pasos completos en iosApp/PUSH_IOS.md.
 private var ultimoToken: String? = null
 
-/** Puente Swift→Kotlin: Swift lo llama desde MessagingDelegate (PushIosKt.recibirTokenPush(token:)). */
+/** Puente Swift→Kotlin: Swift lo llama desde MessagingDelegate (Push_iosKt.recibirTokenPush(token:)). */
 fun recibirTokenPush(token: String) {
     ultimoToken = token
     TokensPush.avisar(token)
