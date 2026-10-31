@@ -16,7 +16,8 @@ y la referencia de funciones SQL están en Umbral-Web:
 - [Referencia de funciones RPC, triggers y RLS](https://github.com/jesusantonioaguilardev/Umbral-Web#referencia-de-la-base-de-datos)
 
 Contenido: [Requisitos](#requisitos) · [1. Configurar](#1-configurar-configkt) · [2. Compilar y correr](#2-compilar-y-correr) ·
-[3. Notificaciones push](#3-notificaciones-push-android) · [Qué hace la app](#qué-hace-la-app) · [Estructura](#estructura) · [Pendientes](#pendientes-para-producción)
+[3. Notificaciones push](#3-notificaciones-push-android) · [4. Escáner de QR](#4-escáner-de-qr-en-la-caseta-android) ·
+[5. Botón de emergencia](#5-botón-de-emergencia) · [Qué hace la app](#qué-hace-la-app) · [Estructura](#estructura) · [Pendientes](#pendientes-para-producción)
 
 ---
 
@@ -139,25 +140,77 @@ Cómo se comporta:
 - Al iniciar sesión, la app registra el token del teléfono con la RPC `registrar_dispositivo`. Al cerrar sesión lo quita con
   `quitar_dispositivo` **antes** de cerrar la sesión, porque la RPC solo deja quitar tokens propios y necesita al usuario
   autenticado; así el siguiente usuario del mismo teléfono no recibe avisos ajenos.
-- En Android 13 o más reciente, la app pide el permiso de notificaciones (`POST_NOTIFICATIONS`) al entrar como **residente**,
-  que es el único rol al que la base de datos le manda push. Si lo niega, la app sigue funcionando sin avisos.
-- Las notificaciones usan el canal **Umbral** (`umbral`), que se crea al abrir la app para que exista aunque el push llegue con
-  la app cerrada.
+- En Android 13 o más reciente, la app pide el permiso de notificaciones (`POST_NOTIFICATIONS`) al entrar como **residente**.
+  Si lo niega, la app sigue funcionando sin avisos. A guardias no se les pide todavía, aunque ahora también reciben las
+  alertas de emergencia (ver [Pendientes](#pendientes-para-producción)).
+- La app crea dos canales al abrirse, para que existan aunque el push llegue con la app cerrada:
+
+  | Canal (id) | Para qué | Cómo avisa |
+  |---|---|---|
+  | **Umbral** (`umbral`) | Visitas, paquetes y avisos. Es el canal por defecto de FCM en el manifest | Importancia alta |
+  | **Emergencias** (`emergencias`) | Push con `tipo = "alerta"` (alertas de emergencia) | Importancia alta, vibración larga, visible en pantalla bloqueada |
+
+  Son dos canales para que el usuario pueda silenciar los avisos normales en *Ajustes → Notificaciones* sin perder las
+  emergencias. Con la app en segundo plano, Android muestra el push tal como lo manda el servidor; por eso la Edge Function
+  `notificar` de Umbral-Web manda `channel_id: "emergencias"` en las alertas. Si la función no está redesplegada con esa
+  versión, las alertas llegan por el canal *Umbral*.
 - iOS todavía no recibe push: el código Kotlin está listo, pero falta la parte nativa en Xcode
   (ver [iosApp/PUSH_IOS.md](iosApp/PUSH_IOS.md)). Escritorio no recibe push.
+
+## 4. Escáner de QR en la caseta (Android)
+
+En *modo caseta*, si el dispositivo tiene cámara, el botón principal es **Escanear QR**: abre la cámara a pantalla completa con
+un marco guía, vibra al leer el pase, quita el prefijo `UMBRAL:` y valida con `validar_pase` igual que al escribir el código.
+**Escribir código** queda como opción secundaria.
+
+- **Requisitos:** Android con cámara (`android.hardware.camera.any`, declarada como no obligatoria para que la app se instale
+  también en equipos sin cámara). Usa CameraX y ML Kit *barcode-scanning* con el modelo incluido en la app, así que no depende
+  de Google Play Services ni descarga el modelo. Versiones en `gradle/libs.versions.toml` (`camerax`, `mlkit-barcode`).
+- **Permisos:** `CAMERA` (se pide al abrir el escáner, no al instalar) y `VIBRATE`. Si el guardia niega la cámara, el escáner
+  explica cómo activarla con **Abrir ajustes** y deja **Escribir código**; al volver de Ajustes revisa otra vez el permiso.
+- **Tableta:** con más de 600 dp de ancho, la caseta muestra el resultado y la bitácora del día en dos columnas.
+- **Escritorio:** no hay escáner (`escanerQrDisponible()` devuelve `false`); se escribe el código o se usa un lector QR tipo
+  teclado, que escribe en el campo.
+- **iOS: pendiente.** El botón no aparece. Falta implementarlo con AVFoundation (`AVCaptureSession` +
+  `AVCaptureMetadataOutput` con tipo QR) y agregar `NSCameraUsageDescription` al `Info.plist`; solo se puede compilar y probar
+  en Mac (ver `composeApp/src/iosMain/kotlin/mx/umbral/app/platform/EscanerQr.ios.kt`).
+
+El panel web de caseta también escanea con la cámara del navegador (ver Umbral-Web).
+
+## 5. Botón de emergencia
+
+En el inicio del residente (*Accesos*), arriba a la derecha, está **Emergencia**:
+
+1. Mantenlo presionado **2 segundos** (se llena de rojo como barra de progreso). Si lo sueltas antes, no se envía nada y aparece
+   la ayuda *"Mantén presionado 2 segundos para pedir ayuda"*. Con lector de pantalla se activa con doble toque.
+2. Se abre una hoja con un mensaje editable (*"Necesito ayuda en mi domicilio"*). Pulsa **Enviar alerta**.
+3. La app inserta en la tabla `alertas` con `creado_por` = el residente (`Repository.enviarAlerta`). Si falla, el error se
+   muestra en la hoja y sugiere llamar a caseta.
+
+La app no manda el push: lo hace el trigger `notificar_alerta` de la base de datos, que avisa a **todo el condominio** con la app
+y sesión abierta (residentes, caseta y administración), menos a quien la envió, con la unidad al inicio del mensaje
+(*"Casa 14: …"*). El panel web muestra la alerta arriba hasta que caseta o administración la marcan atendida.
+
+**Por qué hay que mantenerlo presionado y por qué hay límite:** una alerta le llega a todo el condominio, así que un toque
+accidental en el bolsillo molestaría a todos. Por eso se mantiene 2 segundos y, además, la base de datos (`limitar_alertas`) deja
+a cada residente enviar como máximo 2 alertas cada 10 minutos (*"Ya enviaste una alerta hace poco; tu alerta ya llegó a caseta y al condominio"*).
+La política `al_ins` rechaza la alerta si `creado_por` no es quien tiene la sesión.
+
+Necesita el `supabase/schema.sql` actualizado de Umbral-Web y, para el canal *Emergencias* en segundo plano, la Edge Function
+`notificar` redesplegada.
 
 ## Qué hace la app
 
 Al iniciar sesión, la pantalla depende del rol (`App.kt`):
 
-- **Residente**
-  - **Inicio:** saldo, paquetes, avisos y últimos accesos.
-  - **Accesos:** crear pases de una vez o recurrentes, ver el QR, **enviar por WhatsApp** o compartir por otra app, y cancelar.
-  - **Pagos** (si `MODULO_FINANZAS`): estado de cuenta, CLABE para SPEI y reportar pago.
+- **Residente** (barra inferior de 4 secciones, `ResidenteHome.kt`)
+  - **Accesos** (inicio): botón de **emergencia**, código personal dinámico que dura 30 segundos, crear pases de una vez o
+    recurrentes, ver el QR, **enviar por WhatsApp** o compartir por otra app, y cancelar.
   - **Comunidad** (si `MODULO_COMUNIDAD`): avisos, paquetes, tickets, reservaciones y encuestas.
-  - **Perfil:** código personal dinámico que dura 30 segundos.
-- **Guardia** → *modo caseta*: validar un código tecleado y ver la bitácora del día.
-  El escaneo con cámara está en el panel web de caseta.
+  - **Pagos** (si `MODULO_FINANZAS`): estado de cuenta, CLABE para SPEI y reportar pago.
+  - **Perfil:** datos de la cuenta y cerrar sesión.
+- **Guardia** → *modo caseta*: **escanear el QR** con la cámara (Android) o escribir el código, resultado grande y bitácora del día.
+- **Admin** → se le indica que use el panel web.
 
 ### Por qué un cargo aparece "En revisión"
 
@@ -181,13 +234,16 @@ composeApp/src/
     Config.kt             ← Supabase, URL del pase, zona horaria y módulos
     data/                 ← Models.kt, Repository.kt (interfaz), SupabaseRepository.kt
     ui/                   ← Theme.kt, Components.kt, login/, residente/, caseta/
+    ui/residente/Emergencia.kt ← botón de emergencia (mantener 2 s) y hoja para enviar la alerta
+    ui/caseta/GuardiaScreen.kt ← modo caseta (escanear o escribir código, bitácora)
     util/Fechas.kt        ← fechas en la zona del condominio
     util/Url.kt           ← codificación de URL para wa.me
     platform/Compartir.kt ← expect de la hoja de compartir
     platform/Push.kt      ← expect del token y el permiso de push
-  androidMain/            ← MainActivity, "compartir" y push de Android (push/: servicio FCM y canal)
-  iosMain/                ← MainViewController, "compartir" y puente de push de iOS
-  desktopMain/            ← main.kt, "compartir" y push vacío de escritorio
+    platform/EscanerQr.kt ← expect del escáner QR (escanerQrDisponible, EscanerQr)
+  androidMain/            ← MainActivity, "compartir", escáner (CameraX + ML Kit) y push (push/: servicio FCM y canales)
+  iosMain/                ← MainViewController, "compartir", puente de push y escáner vacío (pendiente)
+  desktopMain/            ← main.kt, "compartir", push y escáner vacíos de escritorio
 composeApp/google-services.json ← lo pones tú (Firebase); no se versiona
 iosApp/iosApp/            ← código Swift de arranque para iOS
 iosApp/PUSH_IOS.md        ← pasos pendientes para push en iOS
@@ -200,8 +256,7 @@ gradle/libs.versions.toml ← versiones (Kotlin, Compose, Supabase, Ktor…)
   Falta integrar una pasarela (Stripe, Conekta, Openpay…) antes de esa llamada.
 - **Conciliación SPEI automática** (ver Umbral-Web).
 - **Push en iOS:** falta la parte nativa en Xcode (Firebase, llave APNs y puente Swift); pasos en [iosApp/PUSH_IOS.md](iosApp/PUSH_IOS.md).
-- **Push de alerta de emergencia:** hoy solo hay push de visita, paquete y aviso; las `alertas` no generan notificación.
-- **Escaneo con cámara en la app:** hoy el guardia teclea el código.
+- **Escáner de QR en iOS:** falta la implementación con AVFoundation y `NSCameraUsageDescription` (ver [sección 4](#4-escáner-de-qr-en-la-caseta-android)).
 - **Proyecto de Xcode** versionado en `iosApp/`.
 
 Historial de cambios: [CHANGELOG.md](CHANGELOG.md). Contexto para agentes: [CLAUDE.md](CLAUDE.md).

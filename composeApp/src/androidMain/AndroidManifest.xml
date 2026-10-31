@@ -4,6 +4,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Android 13+: se pide en tiempo de ejecución al entrar como residente -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Caseta: escanear el QR del pase. Se pide al abrir el escáner; sin cámara se escribe el código -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <application
         android:allowBackup="true"

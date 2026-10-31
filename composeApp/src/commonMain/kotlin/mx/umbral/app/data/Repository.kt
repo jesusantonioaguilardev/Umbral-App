@@ -22,6 +22,7 @@ interface Repository {
     suspend fun cancelarPase(id: String)
     suspend fun codigoPersonal(): CodigoPersonal
     suspend fun accesosDeMiUnidad(): List<Acceso>
+    suspend fun enviarAlerta(mensaje: String)
 
     // Cuotas
     suspend fun miUnidad(): Unidad?

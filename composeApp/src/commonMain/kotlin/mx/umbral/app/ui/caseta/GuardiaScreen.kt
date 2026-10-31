@@ -1,6 +1,20 @@
 package mx.umbral.app.ui.caseta
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import mx.umbral.app.data.Acceso
+import mx.umbral.app.platform.EscanerQr
+import mx.umbral.app.platform.escanerQrDisponible
+import mx.umbral.app.ui.BotonSecundario
+import mx.umbral.app.ui.Carga
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -70,8 +84,11 @@ import mx.umbral.app.ui.cargar
 import mx.umbral.app.ui.tnum
 import mx.umbral.app.util.Fechas
 
-/** Modo caseta en el teléfono del guardia: validar códigos y ver la bitácora del día.
- *  Para escanear con cámara usa el panel web de caseta (tableta). Un lector QR tipo teclado escribe en el campo. */
+/** Ancho a partir del cual la caseta usa dos columnas (tableta). */
+private val AnchoTableta = 600.dp
+
+/** Modo caseta en el teléfono o la tableta del guardia: escanear o escribir códigos y ver la bitácora del día.
+ *  Con cámara (Android) el botón principal es "Escanear QR". Un lector QR tipo teclado escribe en el campo. */
 @Composable
 fun GuardiaScreen(repo: Repository, perfil: Perfil, salir: () -> Unit) {
     var codigo by remember { mutableStateOf("") }
@@ -81,13 +98,18 @@ fun GuardiaScreen(repo: Repository, perfil: Perfil, salir: () -> Unit) {
     val accesos by cargar(refresco) { repo.accesosHoy() }
     val scope = rememberCoroutineScope()
     var reloj by remember { mutableStateOf(Fechas.hora(Fechas.ahora().toString())) }
+    val conCamara = escanerQrDisponible()
+    var escaneando by remember { mutableStateOf(false) }
+    // Con cámara el campo queda oculto hasta tocar "Escribir código"; sin cámara siempre se ve
+    var escribir by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) { reloj = Fechas.hora(Fechas.ahora().toString()); delay(15_000) }
     }
 
-    fun validar() {
-        val c = codigo.removePrefix("UMBRAL:").trim()
+    // Misma lógica para lo escrito y lo escaneado: quita el prefijo del QR y llama validar_pase
+    fun validar(texto: String = codigo) {
+        val c = texto.trim().removePrefix("UMBRAL:").trim()
         if (c.isBlank() || validando) return
         validando = true
         scope.launch {
@@ -96,68 +118,128 @@ fun GuardiaScreen(repo: Repository, perfil: Perfil, salir: () -> Unit) {
         }
     }
 
-    LazyColumn(
-        Modifier.fillMaxSize().safeDrawingPadding(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Secundario(listOfNotNull("Caseta", perfil.condominio?.nombre).joinToString(" · "), maxLines = 1)
-                    Text(reloj, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.headlineSmall.tnum())
-                    Secundario(perfil.nombre, maxLines = 1)
-                }
-                BotonIcono(Icons.Outlined.Refresh, "Actualizar bitácora", { refresco++ })
-                BotonIcono(Icons.AutoMirrored.Outlined.Logout, "Cerrar sesión", salir)
+    val cabecera: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Secundario(listOfNotNull("Caseta", perfil.condominio?.nombre).joinToString(" · "), maxLines = 1)
+                Text(reloj, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.headlineSmall.tnum())
+                Secundario(perfil.nombre, maxLines = 1)
+            }
+            BotonIcono(Icons.Outlined.Refresh, "Actualizar bitácora", { refresco++ })
+            BotonIcono(Icons.AutoMirrored.Outlined.Logout, "Cerrar sesión", salir)
+        }
+    }
+    val panelResultado: @Composable () -> Unit = {
+        val r = resultado
+        if (r == null) Tarjeta(padding = 24.dp) {
+            Text("Listo para validar", style = MaterialTheme.typography.titleMedium)
+            Secundario(
+                if (conCamara) "Escanea el QR del pase o escribe el código. El resultado aparece aquí."
+                else "Escribe el código del pase o léelo con el lector. El resultado aparece aquí."
+            )
+        } else Resultado(r)
+    }
+    val controles: @Composable () -> Unit = {
+        Controles(
+            conCamara = conCamara, escribir = escribir || !conCamara, codigo = codigo, validando = validando,
+            onCodigo = { codigo = it.uppercase() }, onValidar = { validar() },
+            onEscanear = { escaneando = true }, onEscribir = { escribir = true },
+        )
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
+        val tableta = maxWidth > AnchoTableta
+        if (tableta) {
+            // Tableta: a la izquierda validar y resultado; a la derecha la bitácora con su propio scroll
+            Row(Modifier.fillMaxSize().padding(horizontal = 28.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(top = 24.dp, bottom = 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                ) { cabecera(); panelResultado(); controles() }
+                LazyColumn(
+                    Modifier.weight(1f).fillMaxHeight(),
+                    contentPadding = PaddingValues(top = 24.dp, bottom = 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) { bitacora(accesos, onReintentar = { refresco++ }) }
+            }
+        } else {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                item { cabecera() }
+                item { panelResultado() }
+                item { controles() }
+                bitacora(accesos, onReintentar = { refresco++ })
             }
         }
-        item {
-            val r = resultado
-            if (r == null) Tarjeta(padding = 24.dp) {
-                Text("Listo para validar", style = MaterialTheme.typography.titleMedium)
-                Secundario("Escribe el código del pase o léelo con el lector. El resultado aparece aquí.")
-            } else Resultado(r)
+    }
+
+    if (escaneando) EscanerQr(
+        onLeido = { texto -> escaneando = false; validar(texto) },
+        onCerrar = { escaneando = false },
+    )
+}
+
+/** Botones de validación. Con cámara: "Escanear QR" grande y "Escribir código" como secundario. */
+@Composable
+private fun Controles(
+    conCamara: Boolean, escribir: Boolean, codigo: String, validando: Boolean,
+    onCodigo: (String) -> Unit, onValidar: () -> Unit, onEscanear: () -> Unit, onEscribir: () -> Unit,
+) {
+    val foco = remember { FocusRequester() }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (conCamara) BotonPrimario(
+            "Escanear QR", onEscanear, icono = Icons.Outlined.QrCodeScanner, alto = 64.dp, cargando = validando,
+            estilo = MaterialTheme.typography.labelLarge.copy(fontSize = 17.sp),
+        )
+        if (conCamara && !escribir) BotonSecundario("Escribir código", onEscribir, icono = Icons.Outlined.Keyboard)
+        if (escribir) {
+            Campo(
+                "Código del pase", codigo, onCodigo,
+                modifier = Modifier.focusRequester(foco),
+                placeholder = "Ej. PX7M2Q",
+                estilo = MaterialTheme.typography.titleLarge.tnum().copy(letterSpacing = 0.08.em),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onValidar() }),
+            )
+            if (conCamara) BotonSecundario("Validar código", onValidar, icono = Icons.Outlined.QrCode2, enabled = codigo.isNotBlank() && !validando)
+            else BotonPrimario(
+                "Validar código", onValidar, icono = Icons.Outlined.QrCode2, alto = 64.dp,
+                enabled = codigo.isNotBlank(), cargando = validando,
+                estilo = MaterialTheme.typography.labelLarge.copy(fontSize = 17.sp),
+            )
+            // Al abrir el campo desde "Escribir código", el teclado aparece solo
+            if (conCamara) LaunchedEffect(Unit) { runCatching { foco.requestFocus() } }
         }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Campo(
-                    "Código del pase", codigo, { codigo = it.uppercase() },
-                    placeholder = "Ej. PX7M2Q",
-                    estilo = MaterialTheme.typography.titleLarge.tnum().copy(letterSpacing = 0.08.em),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { validar() }),
+    }
+}
+
+/** Encabezado y filas de la bitácora del día. */
+private fun LazyListScope.bitacora(accesos: Carga<List<Acceso>>, onReintentar: () -> Unit) {
+    item { Titulo("Bitácora de hoy") }
+    item {
+        Contenido(accesos, onReintentar = onReintentar) { lista ->
+            if (lista.isEmpty()) Secundario("Aún no hay accesos registrados hoy.")
+        }
+    }
+    items(accesos.datos.orEmpty(), key = { it.id }) { a ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Punto(if (a.permitido) Verde else Rojo)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    listOfNotNull(a.nombre, a.unidad?.nombre).joinToString(" · "),
+                    style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                BotonPrimario(
-                    "Validar código", ::validar, icono = Icons.Outlined.QrCode2, alto = 64.dp,
-                    enabled = codigo.isNotBlank(), cargando = validando,
-                    estilo = MaterialTheme.typography.labelLarge.copy(fontSize = 17.sp),
+                Text(
+                    listOfNotNull(a.tipo.etiqueta, if (a.permitido) null else "Denegado", a.motivo).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (a.permitido) MaterialTheme.colorScheme.onSurfaceVariant else Rojo,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-        }
-        item { Titulo("Bitácora de hoy") }
-        item {
-            Contenido(accesos, onReintentar = { refresco++ }) { lista ->
-                if (lista.isEmpty()) Secundario("Aún no hay accesos registrados hoy.")
-            }
-        }
-        items(accesos.datos.orEmpty(), key = { it.id }) { a ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Punto(if (a.permitido) Verde else Rojo)
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        listOfNotNull(a.nombre, a.unidad?.nombre).joinToString(" · "),
-                        style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        listOfNotNull(a.tipo.etiqueta, if (a.permitido) null else "Denegado", a.motivo).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (a.permitido) MaterialTheme.colorScheme.onSurfaceVariant else Rojo,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Text(Fechas.hora(a.createdAt), style = MaterialTheme.typography.bodyMedium.tnum(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            Text(Fechas.hora(a.createdAt), style = MaterialTheme.typography.bodyMedium.tnum(), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

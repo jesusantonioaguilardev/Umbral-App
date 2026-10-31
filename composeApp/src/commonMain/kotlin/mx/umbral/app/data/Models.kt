@@ -163,6 +163,14 @@ data class NuevoTicket(
     val categoria: String,
 )
 
+/** Alerta de emergencia del residente (tabla alertas). Un trigger avisa por push a todo el condominio. */
+@Serializable
+data class NuevaAlerta(
+    @SerialName("condominio_id") val condominioId: String,
+    val mensaje: String,
+    @SerialName("creado_por") val creadoPor: String,
+)
+
 /** Categorías de reporte que puede elegir el residente. */
 val CATEGORIAS_TICKET = listOf("Mantenimiento", "Seguridad", "Limpieza", "Áreas comunes", "Ruido / vecinos", "Otro")
 

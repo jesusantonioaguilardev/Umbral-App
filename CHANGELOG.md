@@ -5,6 +5,24 @@ Cambios importantes de este proyecto. Formato basado en [Keep a Changelog](https
 ## [Sin publicar]
 
 ### Agregado
+- **Escanear QR con la cámara en la caseta (Android):** en teléfonos y tabletas con cámara, el botón principal de la caseta es
+  **Escanear QR**; abre la cámara a pantalla completa con un marco guía, vibra al leer el pase y muestra el resultado igual que
+  al escribir el código. *Escribir código* queda como opción secundaria. La app pide el permiso de cámara al abrir el escáner;
+  si se niega, explica cómo activarlo en Ajustes y deja escribir el código. Lee solo códigos QR y con el modelo incluido en la
+  app (no necesita Google Play). Usa los permisos `CAMERA` y `VIBRATE`; la cámara no es obligatoria para instalar la app.
+  En escritorio e iOS el botón no aparece por ahora (en escritorio sigue sirviendo un lector QR tipo teclado).
+- En tableta (más de 600dp de ancho) la caseta muestra el resultado y la bitácora del día en dos columnas.
+- **Botón de emergencia para el residente:** en el inicio (Accesos), arriba a la derecha. Para evitar toques accidentales hay
+  que mantenerlo presionado 2 segundos (se llena como barra de progreso); luego abre una hoja con un mensaje editable
+  ("Necesito ayuda en mi domicilio"), lo envía a la tabla `alertas` y confirma *"Alerta enviada a todo el condominio"*.
+  Si falla, el error se muestra en la hoja. Con lector de pantalla se activa con doble toque. El push lo manda el trigger
+  `notificar_alerta` de la base a **todo el condominio** con la app y sesión abierta (residentes, caseta y administración),
+  menos a quien la envió, con su unidad al inicio del mensaje. Para frenar abusos, un residente puede enviar como máximo
+  2 alertas cada 10 minutos. Ver también Umbral-Web. **(requiere ejecutar `supabase/schema.sql` en Umbral-Web)**
+- Canal de notificaciones **Emergencias** (`emergencias`) en Android: los push con `tipo = "alerta"` usan este canal con
+  importancia alta, vibración larga y visibles en pantalla bloqueada, para que se puedan silenciar los avisos normales sin perder
+  las emergencias. Con la app en segundo plano el canal lo elige el servidor, así que hace falta **redesplegar la Edge Function
+  `notificar`** de Umbral-Web (ahora manda `channel_id: "emergencias"` en las alertas); sin eso llegan por el canal *Umbral*.
 - **Notificaciones push en Android:** el residente recibe un aviso en el teléfono cuando entra su visita (o un proveedor,
   paquetería o Airbnb de su unidad), cuando caseta recibe un paquete para su unidad y cuando administración publica un aviso
   (todos los residentes, o solo los de la torre del aviso). Al iniciar sesión la app registra el teléfono con

@@ -7,14 +7,15 @@ Guía para personas: [README.md](README.md). Cambios: [CHANGELOG.md](CHANGELOG.m
 
 ## Arquitectura
 
-- Un solo módulo Gradle: `:composeApp`. Casi todo vive en `commonMain`; las plataformas solo aportan punto de entrada y
-  `rememberCompartir()` (`expect`/`actual` en `platform/Compartir*.kt`).
-- `App.kt` crea `SupabaseRepository` y enruta por rol: residente → `ResidenteHome` (pestañas Inicio, Accesos, Pagos,
-  Comunidad, Perfil); guardia → `GuardiaScreen`.
+- Un solo módulo Gradle: `:composeApp`. Casi todo vive en `commonMain`; las plataformas solo aportan punto de entrada y los
+  `expect`/`actual` de `platform/` (`Compartir*.kt`, `Push*.kt`, `EscanerQr*.kt`).
+- `App.kt` crea `SupabaseRepository` y enruta por rol: residente → `ResidenteHome` (pestañas Accesos, Comunidad, Pagos,
+  Perfil); guardia → `GuardiaScreen`; admin → `AdminEnMovil` (lo manda al panel web).
 - Datos: interfaz `data/Repository.kt` → implementación `data/SupabaseRepository.kt` (supabase-kt 3.0.3: auth + postgrest).
   Las pantallas solo hablan con `Repository`.
 - Seguridad en la base de datos (RLS, triggers, RPC). La app usa solo la clave **anon**.
-- Versiones en `gradle/libs.versions.toml` (Kotlin 2.1.0, Compose MP 1.7.3, kotlinx-datetime 0.6.1, Ktor 3.0.3, qrose 1.0.1).
+- Versiones en `gradle/libs.versions.toml` (Kotlin 2.1.0, Compose MP 1.7.3, kotlinx-datetime 0.6.1, Ktor 3.0.3, qrose 1.0.1;
+  solo Android: CameraX 1.4.2, ML Kit barcode-scanning 17.3.0, Firebase BoM).
 
 ## Rutas clave (`composeApp/src/commonMain/kotlin/mx/umbral/app/`)
 
@@ -23,9 +24,11 @@ Guía para personas: [README.md](README.md). Cambios: [CHANGELOG.md](CHANGELOG.m
 | `Config.kt` | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `URL_PASE_WEB`, `ZONA_HORARIA`, `MODULO_COMUNIDAD`, `MODULO_FINANZAS` |
 | `data/Models.kt` | Modelos `@Serializable` con `@SerialName` en snake_case = columnas de Supabase |
 | `data/Repository.kt` | Contrato de operaciones (sesión, pases, cuotas, comunidad, caseta) |
-| `data/SupabaseRepository.kt` | Consultas a tablas y RPC `generar_codigo_personal`, `validar_pase`, `registrar_dispositivo`, `quitar_dispositivo` |
+| `data/SupabaseRepository.kt` | Consultas a tablas (incluido el insert en `alertas` de `enviarAlerta`) y RPC `generar_codigo_personal`, `validar_pase`, `registrar_dispositivo`, `quitar_dispositivo` |
 | `platform/Push.kt` (+ `.android/.ios/.desktop`) | `plataformaPush`, `tokenPush()`, `PedirPermisoNotificaciones()`, `TokensPush` |
-| `androidMain/.../push/` | `UmbralMessagingService` (FCM) y `Notificaciones` (canal `umbral`) |
+| `androidMain/.../push/` | `UmbralMessagingService` (FCM) y `Notificaciones` (canales `umbral` = `CANAL` y `emergencias` = `CANAL_EMERGENCIAS`) |
+| `platform/EscanerQr.kt` (+ `.android/.ios/.desktop`) | `escanerQrDisponible()` y `EscanerQr(onLeido, onCerrar)`. Android: CameraX + ML Kit (solo QR); iOS y escritorio: no disponible |
+| `ui/residente/Emergencia.kt` | `BotonEmergencia` (mantener 2 s) y `AlertaSheet` (mensaje → `Repository.enviarAlerta`) |
 | `ui/Theme.kt` | `UmbralTheme`, esquemas claro/oscuro y `LocalColoresEstado` (`Verde`, `Rojo`, `Ambar` y sus `*Suave`) |
 | `ui/Components.kt` | Componentes compartidos (`Tarjeta`, `Etiqueta*`, `Contenido`, `Vacio`, `cargar`…) |
 | `ui/residente/*Tab.kt`, `ui/caseta/GuardiaScreen.kt` | Pantallas |
@@ -48,7 +51,8 @@ Guía para personas: [README.md](README.md). Cambios: [CHANGELOG.md](CHANGELOG.m
   y `ZONA_HORARIA`. `schema.sql` usa `America/Hermosillo` fija.
 - **Pase público:** `URL_PASE_WEB` = `https://jesusantonioaguilardev.github.io/Umbral-Web/pase.html?c=`; la app le concatena el código.
   GitHub Pages publica `main` de Umbral-Web.
-- **QR:** `UMBRAL:<código>` (ver `AccesosTab.kt`, `PerfilTab.kt`); `GuardiaScreen` quita el prefijo antes de `validar_pase`.
+- **QR:** `UMBRAL:<código>` (lo dibuja `AccesosTab.kt`); `GuardiaScreen` quita el prefijo (escaneado o tecleado) antes de
+  `validar_pase`. El escáner solo lee formato QR.
 - **Pagos:** el residente inserta en `pagos`; el trigger fuerza `confirmado = false`. `cargos()` marca `enRevision` los cargos
   con un pago sin confirmar, que no se pueden volver a pagar.
 - **Encuestas:** `cerrada` si `cierra < hoy`; la política `vt_ins` rechaza votos en encuestas cerradas.
@@ -57,6 +61,13 @@ Guía para personas: [README.md](README.md). Cambios: [CHANGELOG.md](CHANGELOG.m
 - **Push:** `App.kt` registra el token con sesión abierta y lo quita *antes* de `logout()` (la RPC necesita sesión).
   `plataformaPush` debe ser `android|ios|web|desktop` (check de `dispositivos`). El canal `umbral` de `Notificaciones.kt` es el
   default de FCM en el manifest. `google-services.json` está en `.gitignore`: nunca lo agregues; sin él el plugin no se aplica.
+- **Alertas:** el push con `data.tipo = "alerta"` va al canal `emergencias`: `Notificaciones.mostrar` lo elige en primer plano y la
+  Edge Function `notificar` (Umbral-Web) manda `channel_id: "emergencias"` para segundo plano. Cambiar el tipo o el id del canal
+  exige cambiar ambos repos. `notificar_alerta` avisa a todo el condominio con dispositivo (cualquier rol) menos al autor.
+- **Alertas siempre con `creado_por` propio:** la política `al_ins` exige `creado_por = auth.uid()`; `NuevaAlerta` manda `yo.id`.
+  Nunca insertes una alerta a nombre de otra persona. Residentes: máximo 2 cada 10 min (trigger `limitar_alertas`); muestra el
+  error de la base, no lo ocultes.
+- **Permisos Android:** `CAMERA` y `VIBRATE` (escáner); `camera.any` con `required="false"`. Sin cámara, la caseta escribe el código.
 - El esquema no se edita aquí. Si la app necesita una columna o RPC nueva, el cambio va en `Umbral-Web/supabase/schema.sql`
   (agente `umbral-supabase`) y se menciona en ambos CHANGELOG.
 

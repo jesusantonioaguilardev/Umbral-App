@@ -97,6 +97,11 @@ class SupabaseRepository(url: String, anonKey: String) : Repository {
             order("created_at", Order.DESCENDING); limit(50)
         }.decodeList()
 
+    // Botón de emergencia: inserta en alertas; el trigger de la base manda el push
+    override suspend fun enviarAlerta(mensaje: String) {
+        client.from("alertas").insert(NuevaAlerta(condo, mensaje.trim(), yo.id))
+    }
+
     // ---------------- Cuotas ----------------
     override suspend fun miUnidad(): Unidad? = yo.unidad
 

@@ -53,7 +53,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -159,6 +162,12 @@ fun AccesosTab(repo: Repository, perfil: Perfil, onVerPagos: () -> Unit, onVerPa
     var nuevo by remember { mutableStateOf(false) }
     var detalle by remember { mutableStateOf<Pase?>(null) }
     var verTodos by remember { mutableStateOf(false) }
+    var alerta by remember { mutableStateOf(false) }
+    var avisoEmergencia by remember { mutableStateOf<String?>(null) }
+    // La ayuda del botón de emergencia se oculta sola (mantenerlo dura 2 s, menos que esto)
+    LaunchedEffect(avisoEmergencia) {
+        if (avisoEmergencia != null) { delay(3_000); avisoEmergencia = null }
+    }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -166,10 +175,18 @@ fun AccesosTab(repo: Repository, perfil: Perfil, onVerPagos: () -> Unit, onVerPa
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         item {
-            Encabezado(
-                "Hola, ${perfil.nombre.substringBefore(" ")}",
-                contexto = listOfNotNull(perfil.unidad?.nombre, perfil.condominio?.nombre).joinToString(" · "),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Encabezado(
+                    "Hola, ${perfil.nombre.substringBefore(" ")}",
+                    contexto = listOfNotNull(perfil.unidad?.nombre, perfil.condominio?.nombre).joinToString(" · "),
+                ) { BotonEmergencia(onActivar = { alerta = true }, onAviso = { avisoEmergencia = it }) }
+                avisoEmergencia?.let {
+                    Text(
+                        it, Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+                        color = Rojo, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, textAlign = TextAlign.End,
+                    )
+                }
+            }
         }
         item { CodigoPersonalTarjeta(repo) }
         item { BotonPrimario("Crear pase para visita", { nuevo = true }, icono = Icons.Rounded.Add, acento = true) }
@@ -246,6 +263,7 @@ fun AccesosTab(repo: Repository, perfil: Perfil, onVerPagos: () -> Unit, onVerPa
         }
     }
 
+    if (alerta) AlertaSheet(repo, onCerrar = { alerta = false })
     if (nuevo) NuevoPaseSheet(repo, onCerrar = { creado ->
         nuevo = false
         if (creado != null) { refresco++; detalle = creado }
