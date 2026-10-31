@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -30,6 +29,7 @@ import mx.umbral.app.platform.TokensPush
 import mx.umbral.app.platform.logPush
 import mx.umbral.app.platform.plataformaPush
 import mx.umbral.app.platform.tokenPush
+import mx.umbral.app.ui.BotonSecundario
 import mx.umbral.app.ui.Cargando
 import mx.umbral.app.ui.UmbralTheme
 import mx.umbral.app.ui.caseta.GuardiaScreen
@@ -131,6 +131,6 @@ private fun AdminEnMovil(p: Perfil, salir: () -> Unit) {
             "La administración se gestiona desde el panel web: unidades, usuarios, pases y bitácora de accesos.",
             textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Button(onClick = salir) { Text("Cerrar sesión") }
+        BotonSecundario("Cerrar sesión", salir)
     }
 }
