@@ -9,6 +9,12 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
+// Firebase: el plugin solo se aplica si ya existe google-services.json (se baja de la consola de Firebase).
+// Sin el archivo la app compila igual y las notificaciones push quedan apagadas.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 kotlin {
     androidTarget {
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
@@ -46,6 +52,8 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.ktor.client.okhttp)
+            implementation(project.dependencies.platform(libs.firebase.bom))
+            implementation(libs.firebase.messaging)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

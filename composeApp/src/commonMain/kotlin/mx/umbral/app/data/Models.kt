@@ -2,6 +2,7 @@ package mx.umbral.app.data
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 enum class Rol { residente, guardia, admin }
 
@@ -217,3 +218,14 @@ data class EncuestaConResultados(
 ) {
     val total get() = votos.sum()
 }
+
+/** Notificación enviada al residente (también llega por push). `datos`: notificacion_id, tipo (acceso, paquete, aviso) y acceso_id, paquete_id o aviso_id, todos como texto. */
+@Serializable
+data class Notificacion(
+    val id: Long,
+    val titulo: String,
+    val cuerpo: String? = null,
+    val datos: JsonObject? = null,
+    val leida: Boolean = false,
+    @SerialName("created_at") val createdAt: String,
+)

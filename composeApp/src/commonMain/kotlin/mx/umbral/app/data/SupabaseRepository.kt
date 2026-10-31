@@ -53,6 +53,22 @@ class SupabaseRepository(url: String, anonKey: String) : Repository {
 
     override suspend fun logout() { client.auth.signOut(); perfil = null }
 
+    // ---------------- Notificaciones push ----------------
+    override suspend fun registrarDispositivo(token: String, plataforma: String) {
+        client.postgrest.rpc("registrar_dispositivo", buildJsonObject {
+            put("p_token", token); put("p_plataforma", plataforma)
+        })
+    }
+
+    override suspend fun quitarDispositivo(token: String) {
+        client.postgrest.rpc("quitar_dispositivo", buildJsonObject { put("p_token", token) })
+    }
+
+    // RLS deja ver solo las propias
+    override suspend fun notificaciones(): List<Notificacion> = client.from("notificaciones").select {
+        order("created_at", Order.DESCENDING); limit(100)
+    }.decodeList()
+
     // ---------------- Accesos ----------------
     override suspend fun misPases(): List<Pase> = client.from("pases").select {
         filter { eq("unidad_id", unidadId); neq("tipo", "residente") }
