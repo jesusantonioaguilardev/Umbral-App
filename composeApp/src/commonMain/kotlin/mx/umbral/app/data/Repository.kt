@@ -8,6 +8,11 @@ interface Repository {
     suspend fun restaurarSesion(): Perfil?
     suspend fun logout()
 
+    // Notificaciones push
+    suspend fun registrarDispositivo(token: String, plataforma: String)
+    suspend fun quitarDispositivo(token: String)
+    suspend fun notificaciones(): List<Notificacion>
+
     // Accesos
     suspend fun misPases(): List<Pase>
     suspend fun crearPase(
@@ -17,6 +22,7 @@ interface Repository {
     suspend fun cancelarPase(id: String)
     suspend fun codigoPersonal(): CodigoPersonal
     suspend fun accesosDeMiUnidad(): List<Acceso>
+    suspend fun enviarAlerta(mensaje: String)
 
     // Cuotas
     suspend fun miUnidad(): Unidad?
