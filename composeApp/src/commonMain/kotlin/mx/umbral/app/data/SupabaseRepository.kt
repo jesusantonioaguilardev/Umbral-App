@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import mx.umbral.app.Config
 import mx.umbral.app.util.Fechas
 
 class SupabaseRepository(url: String, anonKey: String) : Repository {
@@ -52,6 +53,14 @@ class SupabaseRepository(url: String, anonKey: String) : Repository {
     }
 
     override suspend fun logout() { client.auth.signOut(); perfil = null }
+
+    // El enlace de recuperación abre bienvenida.html del panel web (maneja type=recovery);
+    // se deriva de URL_PASE_WEB para no duplicar la URL base.
+    private val urlRecuperacion = Config.URL_PASE_WEB.substringBefore("pase.html") + "bienvenida.html"
+
+    override suspend fun recuperarContrasena(correo: String) {
+        client.auth.resetPasswordForEmail(correo.trim(), redirectUrl = urlRecuperacion)
+    }
 
     // ---------------- Notificaciones push ----------------
     override suspend fun registrarDispositivo(token: String, plataforma: String) {

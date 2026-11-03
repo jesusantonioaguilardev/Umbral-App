@@ -7,6 +7,8 @@ interface Repository {
     suspend fun login(email: String, password: String): Perfil
     suspend fun restaurarSesion(): Perfil?
     suspend fun logout()
+    /** Manda el correo para elegir contraseña nueva (no dice si el correo existe). */
+    suspend fun recuperarContrasena(correo: String)
 
     // Notificaciones push
     suspend fun registrarDispositivo(token: String, plataforma: String)
