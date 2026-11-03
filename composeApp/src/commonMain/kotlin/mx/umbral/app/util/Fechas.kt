@@ -9,6 +9,7 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
@@ -50,6 +51,22 @@ object Fechas {
     }
 
     fun fechaHora(iso: String) = "${fecha(iso)} · ${hora(iso)}"
+
+    fun fechaLocal(iso: String): LocalDate? = if (iso.length == 10) runCatching { LocalDate.parse(iso) }.getOrNull()
+        else parse(iso)?.toLocalDateTime(zona)?.date
+
+    /** "Hoy", "Ayer" o "28 oct" (con año si no es el actual). */
+    fun corta(iso: String): String {
+        val d = fechaLocal(iso) ?: return iso
+        return when (d) {
+            hoy() -> "Hoy"
+            hoy().minus(1, DateTimeUnit.DAY) -> "Ayer"
+            else -> "${d.dayOfMonth} ${MESES[d.monthNumber - 1]}" + if (d.year != hoy().year) " ${d.year}" else ""
+        }
+    }
+
+    /** "Hoy 11:42", "Ayer 08:05" o "28 oct 11:42". */
+    fun cuando(iso: String): String = "${corta(iso)} ${hora(iso)}"
 
     fun etiquetaDia(d: LocalDate): String = when (d) {
         hoy() -> "Hoy"

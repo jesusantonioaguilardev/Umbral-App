@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -19,11 +18,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import mx.umbral.app.data.Perfil
 import mx.umbral.app.data.Repository
 import mx.umbral.app.data.Rol
 import mx.umbral.app.data.SupabaseRepository
+import mx.umbral.app.platform.PedirPermisoNotificaciones
+import mx.umbral.app.platform.TokensPush
+import mx.umbral.app.platform.logPush
+import mx.umbral.app.platform.plataformaPush
+import mx.umbral.app.platform.tokenPush
+import mx.umbral.app.ui.BotonSecundario
 import mx.umbral.app.ui.Cargando
 import mx.umbral.app.ui.UmbralTheme
 import mx.umbral.app.ui.caseta.GuardiaScreen
@@ -46,7 +52,40 @@ fun App() {
         perfil = runCatching { repo.restaurarSesion() }.getOrNull()
         iniciando = false
     }
-    val salir: () -> Unit = { scope.launch { runCatching { repo.logout() }; perfil = null } }
+    // Push: con sesión abierta registra el token (y los que lleguen nuevos) sin bloquear la UI.
+    var tokenRegistrado by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(perfil?.id) {
+        if (perfil == null) return@LaunchedEffect
+        suspend fun registrar(token: String) {
+            try {
+                repo.registrarDispositivo(token, plataformaPush)
+                tokenRegistrado = token
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logPush("No se pudo registrar el dispositivo", e)
+            }
+        }
+        try {
+            tokenPush()?.let { registrar(it) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logPush("No se obtuvo el token de push", e)
+        }
+        TokensPush.nuevos.collect { registrar(it) }
+    }
+    val salir: () -> Unit = {
+        scope.launch {
+            // Se quita antes de cerrar sesión: la RPC necesita al usuario autenticado.
+            tokenRegistrado?.let { t ->
+                runCatching { repo.quitarDispositivo(t) }.onFailure { logPush("No se pudo quitar el dispositivo", it) }
+            }
+            tokenRegistrado = null
+            runCatching { repo.logout() }
+            perfil = null
+        }
+    }
 
     UmbralTheme {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -54,8 +93,15 @@ fun App() {
             when {
                 iniciando -> Cargando()
                 p == null -> LoginScreen(repo) { perfil = it }
-                p.rol == Rol.guardia -> GuardiaScreen(repo, p, salir)
-                p.rol == Rol.residente -> ResidenteHome(repo, p, salir)
+                p.rol == Rol.guardia -> {
+                    // El guardia también recibe las alertas de emergencia por push
+                    PedirPermisoNotificaciones()
+                    GuardiaScreen(repo, p, salir)
+                }
+                p.rol == Rol.residente -> {
+                    PedirPermisoNotificaciones()
+                    ResidenteHome(repo, p, salir)
+                }
                 else -> AdminEnMovil(p, salir)
             }
         }
@@ -89,6 +135,6 @@ private fun AdminEnMovil(p: Perfil, salir: () -> Unit) {
             "La administración se gestiona desde el panel web: unidades, usuarios, pases y bitácora de accesos.",
             textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Button(onClick = salir) { Text("Cerrar sesión") }
+        BotonSecundario("Cerrar sesión", salir)
     }
 }
