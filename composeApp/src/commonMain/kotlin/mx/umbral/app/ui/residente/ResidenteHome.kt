@@ -26,7 +26,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import mx.umbral.app.Config
 import mx.umbral.app.data.Perfil
 import mx.umbral.app.data.Repository
+import mx.umbral.app.platform.DestinoPush
 import mx.umbral.app.ui.Divisor
 import mx.umbral.app.ui.Terciario
 
@@ -66,6 +70,24 @@ private val tabsVisibles = Tab.entries.filter {
 fun ResidenteHome(repo: Repository, perfil: Perfil, salir: () -> Unit) {
     var tab by remember { mutableStateOf(Tab.Accesos) }
     var seccionComunidad by remember { mutableIntStateOf(SECCION_COMUNICADOS) }
+    // Cambia al abrir desde un push para que Comunidad vuelva a la sección pedida aunque ya estuviera abierta.
+    var visitaComunidad by remember { mutableIntStateOf(0) }
+
+    // Al tocar una notificación: abre la pestaña que corresponde a su tipo (una sola vez).
+    val destino by DestinoPush.pendiente.collectAsState()
+    LaunchedEffect(destino) {
+        if (destino == null) return@LaunchedEffect
+        when (DestinoPush.consumir()) {
+            "acceso" -> tab = Tab.Accesos
+            "paquete" -> if (Config.MODULO_COMUNIDAD) {
+                seccionComunidad = SECCION_PAQUETES; visitaComunidad++; tab = Tab.Comunidad
+            }
+            // No hay pantalla de alertas: se abren los avisos del condominio.
+            "aviso", "alerta" -> if (Config.MODULO_COMUNIDAD) {
+                seccionComunidad = SECCION_COMUNICADOS; visitaComunidad++; tab = Tab.Comunidad
+            }
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -81,7 +103,7 @@ fun ResidenteHome(repo: Repository, perfil: Perfil, salir: () -> Unit) {
                     onVerPaquetes = { seccionComunidad = SECCION_PAQUETES; tab = Tab.Comunidad },
                 )
                 Tab.Pagos -> PagosTab(repo)
-                Tab.Comunidad -> ComunidadTab(repo, seccionComunidad)
+                Tab.Comunidad -> key(visitaComunidad) { ComunidadTab(repo, seccionComunidad) }
                 Tab.Perfil -> PerfilTab(perfil, salir)
             }
         }

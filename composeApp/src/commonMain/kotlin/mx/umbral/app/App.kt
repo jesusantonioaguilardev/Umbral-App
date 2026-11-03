@@ -24,6 +24,7 @@ import mx.umbral.app.data.Perfil
 import mx.umbral.app.data.Repository
 import mx.umbral.app.data.Rol
 import mx.umbral.app.data.SupabaseRepository
+import mx.umbral.app.platform.DestinoPush
 import mx.umbral.app.platform.PedirPermisoNotificaciones
 import mx.umbral.app.platform.TokensPush
 import mx.umbral.app.platform.logPush
@@ -74,6 +75,11 @@ fun App() {
             logPush("No se obtuvo el token de push", e)
         }
         TokensPush.nuevos.collect { registrar(it) }
+    }
+    // Solo el residente navega desde un push; con otro rol se descarta para que no se aplique en otra sesión.
+    LaunchedEffect(perfil?.rol) {
+        val rol = perfil?.rol ?: return@LaunchedEffect
+        if (rol != Rol.residente) DestinoPush.pendiente.collect { if (it != null) DestinoPush.consumir() }
     }
     val salir: () -> Unit = {
         scope.launch {
