@@ -5,6 +5,13 @@ Cambios importantes de este proyecto. Formato basado en [Keep a Changelog](https
 ## [Sin publicar]
 
 ### Agregado
+- **Tocar una notificación abre la pantalla que le corresponde (Android, residente):** una visita que entró abre *Accesos*,
+  un paquete abre *Comunidad → Paquetes* y un aviso o una alerta de emergencia abre *Comunidad → Avisos* (no hay pantalla
+  propia de alertas). Funciona con la app cerrada, en segundo plano o abierta, y navega una sola vez: al girar la pantalla o
+  volver desde Recientes no se repite. Si el condominio no tiene el módulo de comunidad, la app abre en su pestaña normal.
+  En caseta y administración el toque solo abre la app, y el destino se descarta para que no se aplique al siguiente
+  usuario que inicie sesión en el mismo teléfono. La pestaña sale del `tipo` que ya mandan la base y la Edge Function
+  `notificar` de Umbral-Web (`acceso`, `paquete`, `aviso`, `alerta`); no requiere cambios en el servidor ni SQL.
 - **Escanear QR con la cámara en la caseta (Android):** en teléfonos y tabletas con cámara, el botón principal de la caseta es
   **Escanear QR**; abre la cámara a pantalla completa con un marco guía, vibra al leer el pase y muestra el resultado igual que
   al escribir el código. *Escribir código* queda como opción secundaria. La app pide el permiso de cámara al abrir el escáner;
@@ -61,5 +68,7 @@ Cambios importantes de este proyecto. Formato basado en [Keep a Changelog](https
   `Config.kt` y cómo compilar para escritorio, Android e iOS.
 
 ### Corregido
+- Con varias notificaciones en la bandeja, cada una abre la app con sus propios datos. Antes todas compartían el mismo
+  `PendingIntent` y la más reciente sobrescribía los datos de las demás, así que tocar una vieja se comportaba como la última.
 - Si falla cancelar un pase, la app muestra el error en lugar de cerrarse como si se hubiera cancelado.
 - Si falla registrar un voto, la app muestra el error en lugar de ignorarlo.
