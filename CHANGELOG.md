@@ -5,6 +5,15 @@ Cambios importantes de este proyecto. Formato basado en [Keep a Changelog](https
 ## [Sin publicar]
 
 ### Agregado
+- **"¿Olvidaste tu contraseña?" en el inicio de sesión:** abre un diálogo donde el residente o guardia escribe su correo
+  (se rellena con el que ya tecleó) y la app le manda un enlace para elegir una contraseña nueva. El enlace abre
+  `bienvenida.html` del panel web publicado. Tras enviar, el mensaje siempre es el mismo (*"Si el correo está registrado,
+  te enviamos un enlace…"*), para no revelar qué correos tienen cuenta. Si se piden demasiados enlaces seguidos, no hay
+  conexión u ocurre otro fallo, lo dice en español. Depende de que `bienvenida.html` maneje enlaces de recuperación
+  (`type=recovery`, [Umbral-Web PR #7](https://github.com/jesusantonioaguilardev/Umbral-Web/pull/7)) y de configurar en
+  Supabase → Authentication → URL Configuration la Redirect URL de `bienvenida.html` y la plantilla de correo
+  *Reset password*. Sin esa Redirect URL, Supabase manda al usuario a la Site URL. No requiere ejecutar `schema.sql`.
+  Ver también Umbral-Web.
 - **Escanear QR con la cámara en la caseta (Android):** en teléfonos y tabletas con cámara, el botón principal de la caseta es
   **Escanear QR**; abre la cámara a pantalla completa con un marco guía, vibra al leer el pase y muestra el resultado igual que
   al escribir el código. *Escribir código* queda como opción secundaria. La app pide el permiso de cámara al abrir el escáner;

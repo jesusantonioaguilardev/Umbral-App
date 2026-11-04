@@ -201,6 +201,12 @@ Necesita el `supabase/schema.sql` actualizado de Umbral-Web y, para el canal *Em
 
 ## Qué hace la app
 
+La pantalla de inicio de sesión (`ui/login/LoginScreen.kt`) pide correo y contraseña. **¿Olvidaste tu contraseña?** manda
+un enlace al correo (`resetPasswordForEmail`) que abre `bienvenida.html` del panel web para elegir una contraseña nueva; la
+URL se deriva de `URL_PASE_WEB`. El mensaje tras enviar es siempre el mismo, exista o no la cuenta. Para que funcione, en
+Supabase → Authentication → URL Configuration agrega la Redirect URL de `bienvenida.html` (por ejemplo
+`https://<usuario>.github.io/Umbral-Web/bienvenida.html`) y revisa la plantilla *Reset password*.
+
 Al iniciar sesión, la pantalla depende del rol (`App.kt`):
 
 - **Residente** (barra inferior de 4 secciones, `ResidenteHome.kt`)
