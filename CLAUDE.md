@@ -25,7 +25,7 @@ Guía para personas: [README.md](README.md). Cambios: [CHANGELOG.md](CHANGELOG.m
 | `data/Models.kt` | Modelos `@Serializable` con `@SerialName` en snake_case = columnas de Supabase |
 | `data/Repository.kt` | Contrato de operaciones (sesión, pases, cuotas, comunidad, caseta) |
 | `data/SupabaseRepository.kt` | Consultas a tablas (incluido el insert en `alertas` de `enviarAlerta`) y RPC `generar_codigo_personal`, `validar_pase`, `registrar_dispositivo`, `quitar_dispositivo` |
-| `platform/Push.kt` (+ `.android/.ios/.desktop`) | `plataformaPush`, `tokenPush()`, `PedirPermisoNotificaciones()`, `TokensPush` |
+| `platform/Push.kt` (+ `.android/.ios/.desktop`) | `plataformaPush`, `tokenPush()`, `PedirPermisoNotificaciones()`, `TokensPush`, `DestinoPush` (pestaña al tocar un push) |
 | `androidMain/.../push/` | `UmbralMessagingService` (FCM) y `Notificaciones` (canales `umbral` = `CANAL` y `emergencias` = `CANAL_EMERGENCIAS`) |
 | `platform/EscanerQr.kt` (+ `.android/.ios/.desktop`) | `escanerQrDisponible()` y `EscanerQr(onLeido, onCerrar)`. Android: CameraX + ML Kit (solo QR); iOS y escritorio: no disponible |
 | `ui/residente/Emergencia.kt` | `BotonEmergencia` (mantener 2 s) y `AlertaSheet` (mensaje → `Repository.enviarAlerta`) |
@@ -61,6 +61,10 @@ Guía para personas: [README.md](README.md). Cambios: [CHANGELOG.md](CHANGELOG.m
 - **Push:** `App.kt` registra el token con sesión abierta y lo quita *antes* de `logout()` (la RPC necesita sesión).
   `plataformaPush` debe ser `android|ios|web|desktop` (check de `dispositivos`). El canal `umbral` de `Notificaciones.kt` es el
   default de FCM en el manifest. `google-services.json` está en `.gitignore`: nunca lo agregues; sin él el plugin no se aplica.
+- **Tocar un push:** `data.tipo` (`acceso|paquete|aviso|alerta`, de los triggers de `schema.sql`) viaja como extra `tipo`;
+  `MainActivity` (`singleTop`) lo pasa a `DestinoPush` y `ResidenteHome` abre Accesos, Comunidad/Paquetes o Comunidad/Avisos
+  (respeta `MODULO_COMUNIDAD`); otros roles lo descartan. El `requestCode` del `PendingIntent` es el id de la notificación.
+  Cambiar o agregar un tipo exige revisar ambos repos.
 - **Alertas:** el push con `data.tipo = "alerta"` va al canal `emergencias`: `Notificaciones.mostrar` lo elige en primer plano y la
   Edge Function `notificar` (Umbral-Web) manda `channel_id: "emergencias"` para segundo plano. Cambiar el tipo o el id del canal
   exige cambiar ambos repos. `notificar_alerta` avisa a todo el condominio con dispositivo (cualquier rol) menos al autor.

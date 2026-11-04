@@ -41,13 +41,16 @@ object Notificaciones {
         if (!manager.areNotificationsEnabled()) return
         crearCanal(context)
 
-        // Al tocarla abre la app; los datos (tipo e ids) viajan como extras para navegar después.
+        // Con el mismo notificacion_id no se duplica; si no viene, una nueva.
+        val id = datos["notificacion_id"]?.toLongOrNull()?.toInt() ?: System.currentTimeMillis().toInt()
+        // Al tocarla abre la app; los datos (tipo e ids) viajan como extras y MainActivity navega con el tipo.
         val abrir = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             datos.forEach { (k, v) -> putExtra(k, v) }
         }
+        // requestCode = id de la notificación: cada una tiene su PendingIntent y no se pisan los extras.
         val pendiente = PendingIntent.getActivity(
-            context, 0, abrir, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            context, id, abrir, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val emergencia = datos["tipo"] == "alerta"
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(context, if (emergencia) CANAL_EMERGENCIAS else CANAL)
@@ -63,8 +66,6 @@ object Notificaciones {
             .setAutoCancel(true)
             .setContentIntent(pendiente)
             .build()
-        // Con el mismo notificacion_id no se duplica; si no viene, una nueva.
-        val id = datos["notificacion_id"]?.toLongOrNull()?.toInt() ?: System.currentTimeMillis().toInt()
         manager.notify(id, notificacion)
     }
 }

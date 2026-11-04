@@ -154,6 +154,10 @@ Cómo se comporta:
   emergencias. Con la app en segundo plano, Android muestra el push tal como lo manda el servidor; por eso la Edge Function
   `notificar` de Umbral-Web manda `channel_id: "emergencias"` en las alertas. Si la función no está redesplegada con esa
   versión, las alertas llegan por el canal *Umbral*.
+- Al tocar una notificación, el residente llega a la pantalla que le corresponde: una visita abre **Accesos**, un paquete
+  abre **Comunidad → Paquetes** y un aviso o una alerta abre **Comunidad → Avisos** (si el módulo de comunidad está
+  apagado, la app abre normal). La pestaña sale del campo `tipo` que manda el servidor. En caseta y administración el toque
+  solo abre la app.
 - iOS todavía no recibe push: el código Kotlin está listo, pero falta la parte nativa en Xcode
   (ver [iosApp/PUSH_IOS.md](iosApp/PUSH_IOS.md)). Escritorio no recibe push.
 
@@ -239,7 +243,7 @@ composeApp/src/
     util/Fechas.kt        ← fechas en la zona del condominio
     util/Url.kt           ← codificación de URL para wa.me
     platform/Compartir.kt ← expect de la hoja de compartir
-    platform/Push.kt      ← expect del token y el permiso de push
+    platform/Push.kt      ← expect del token y el permiso de push; DestinoPush (pestaña al tocar un push)
     platform/EscanerQr.kt ← expect del escáner QR (escanerQrDisponible, EscanerQr)
   androidMain/            ← MainActivity, "compartir", escáner (CameraX + ML Kit) y push (push/: servicio FCM y canales)
   iosMain/                ← MainViewController, "compartir", puente de push y escáner vacío (pendiente)
