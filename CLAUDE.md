@@ -23,7 +23,7 @@ Guía para personas: [README.md](README.md). Cambios: [CHANGELOG.md](CHANGELOG.m
 |---|---|
 | `Config.kt` | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `URL_PASE_WEB`, `ZONA_HORARIA`, `MODULO_COMUNIDAD`, `MODULO_FINANZAS` |
 | `data/Models.kt` | Modelos `@Serializable` con `@SerialName` en snake_case = columnas de Supabase |
-| `data/Repository.kt` | Contrato de operaciones (sesión, pases, cuotas, comunidad, caseta) |
+| `data/Repository.kt` | Contrato de operaciones (sesión y `recuperarContrasena`, pases, cuotas, comunidad, caseta) |
 | `data/SupabaseRepository.kt` | Consultas a tablas (incluido el insert en `alertas` de `enviarAlerta`) y RPC `generar_codigo_personal`, `validar_pase`, `registrar_dispositivo`, `quitar_dispositivo` |
 | `platform/Push.kt` (+ `.android/.ios/.desktop`) | `plataformaPush`, `tokenPush()`, `PedirPermisoNotificaciones()`, `TokensPush` |
 | `androidMain/.../push/` | `UmbralMessagingService` (FCM) y `Notificaciones` (canales `umbral` = `CANAL` y `emergencias` = `CANAL_EMERGENCIAS`) |
@@ -51,6 +51,9 @@ Guía para personas: [README.md](README.md). Cambios: [CHANGELOG.md](CHANGELOG.m
   y `ZONA_HORARIA`. `schema.sql` usa `America/Hermosillo` fija.
 - **Pase público:** `URL_PASE_WEB` = `https://jesusantonioaguilardev.github.io/Umbral-Web/pase.html?c=`; la app le concatena el código.
   GitHub Pages publica `main` de Umbral-Web.
+- **Recuperar contraseña:** `recuperarContrasena` usa `resetPasswordForEmail` con `redirectUrl` = base de `URL_PASE_WEB` +
+  `bienvenida.html` (Umbral-Web la maneja con `type=recovery`). Esa URL debe estar en las Redirect URLs de Supabase Auth.
+  El diálogo muestra siempre el mismo mensaje neutral: no reveles si un correo existe.
 - **QR:** `UMBRAL:<código>` (lo dibuja `AccesosTab.kt`); `GuardiaScreen` quita el prefijo (escaneado o tecleado) antes de
   `validar_pase`. El escáner solo lee formato QR.
 - **Pagos:** el residente inserta en `pagos`; el trigger fuerza `confirmado = false`. `cargos()` marca `enRevision` los cargos
